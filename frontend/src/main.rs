@@ -15,7 +15,7 @@ fn App() -> Html {
         use_effect_with((), move |_| {
             let entities = entities.clone();
             wasm_bindgen_futures::spawn_local(async move {
-                let fetched_entities: Vec<Entity> = Request::get("/entities")
+                let fetched_entities: Vec<Entity> = Request::get("/api/entities")
                     .send()
                     .await
                     .unwrap()

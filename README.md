@@ -29,5 +29,5 @@ cd backend && cargo run <path to bitcoin core cookie file>
 Build and serve the application locally:
 
 ```
-cd frontend && trunk serve --proxy-backend=http://localhost:8000
+cd frontend && trunk serve
 ```
