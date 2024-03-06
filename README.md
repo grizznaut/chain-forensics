@@ -17,3 +17,17 @@ Write a program that connects to a bitcoin node (txindex=1), and groups addresse
 - Identify wallet fingerprints in transactions and the software that was likely used to create them.
 - Attempt to identify collaborative transactions such as CoinJoins.
 - Provide a user interface for visualizing entities and their flows of funds. 
+
+## Usage
+
+Running the backend server:
+
+```
+cd backend && cargo run <path to bitcoin core cookie file>
+```
+
+Build and serve the application locally:
+
+```
+cd frontend && trunk serve --proxy-backend=http://localhost:8000
+```
