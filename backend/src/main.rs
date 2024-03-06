@@ -17,7 +17,7 @@ struct Entity {
 }
 
 // Placeholder endpoint, for now just returns dummy data.
-async fn root(State(state): State<Arc<AppState>>) -> Json<Vec<Entity>> {
+async fn entities(State(state): State<Arc<AppState>>) -> Json<Vec<Entity>> {
     let entities = sqlx::query_as!(Entity, "SELECT name FROM entity")
         .fetch_all(&state.db_pool)
         .await
@@ -94,7 +94,9 @@ async fn main() {
     index_blockchain(Arc::clone(&app_state));
 
     // Configure routing
-    let app = Router::new().route("/", get(root)).with_state(app_state);
+    let app = Router::new()
+        .route("/entities", get(entities))
+        .with_state(app_state);
 
     // Start HTTP server
     let listener = tokio::net::TcpListener::bind("0.0.0.0:8000").await.unwrap();
