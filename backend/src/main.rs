@@ -1,13 +1,12 @@
-use axum::{extract::State, routing::get, Json, Router};
-use bitcoin::TxOut;
-use bitcoincore_rpc::{Auth, Client, RpcApi};
-use serde::Serialize;
-use std::collections::HashMap;
+use axum::{extract::Path, extract::State, routing::get, Json, Router};
+use bitcoincore_rpc::Auth;
+use serde::{Deserialize, Serialize};
 use std::env;
 use std::sync::Arc;
 
 struct AppState {
-    rpc_client: Client,
+    rpc_client: bitcoincore_rpc::Client,
+    reqwest_client: reqwest::Client,
     db_pool: sqlx::MySqlPool,
 }
 
@@ -25,30 +24,27 @@ async fn entities(State(state): State<Arc<AppState>>) -> Json<Vec<Entity>> {
     Json(entities)
 }
 
-// Index chain data.
-// TODO: This should index inflows/outflows of funds per address, and group addresses
-// into clusters ("entities") based on common-input spend, writing results to database.
-fn index_blockchain(state: Arc<AppState>) {
-    let start_height = 0;
-    let end_height = state.rpc_client.get_block_count().unwrap();
+#[derive(Serialize, Deserialize)]
+struct AddrStats {
+    funded_txo_count: u32,
+    funded_txo_sum: u64,
+    spent_txo_count: u32,
+    spent_txo_sum: u64,
+    tx_count: u32,
+}
 
-    let mut utxos_by_script_pubkey: HashMap<String, Vec<TxOut>> = HashMap::new();
-    for block_height in start_height..end_height {
-        let blockhash = state.rpc_client.get_block_hash(block_height).unwrap();
-        let block = state.rpc_client.get_block(&blockhash).unwrap();
+#[derive(Serialize, Deserialize)]
+struct Address {
+    address: String,
+    chain_stats: AddrStats,
+    mempool_stats: AddrStats,
+}
 
-        for tx in block.txdata {
-            for txout in tx.output {
-                utxos_by_script_pubkey
-                    .entry(txout.script_pubkey.to_hex_string())
-                    .and_modify(|e| e.push(txout.clone()))
-                    .or_insert(vec![txout]);
-                // TODO: write data to DB
-            }
-        }
-    }
-
-    dbg!(utxos_by_script_pubkey.len());
+async fn address(Path(address): Path<String>, State(state): State<Arc<AppState>>) -> Json<Address> {
+    let url = format!("http://127.0.0.1:3002/address/{}", address);
+    let res = state.reqwest_client.get(url).send().await.unwrap();
+    let address_details = res.json().await.unwrap();
+    Json(address_details)
 }
 
 async fn setup_database() -> sqlx::MySqlPool {
@@ -77,25 +73,26 @@ async fn main() {
         cookie_filepath = &args[1];
     }
 
-    let rpc_client = Client::new(
+    let rpc_client = bitcoincore_rpc::Client::new(
         "http://localhost:18443",
         Auth::CookieFile(cookie_filepath.into()),
     )
     .expect("Could not connect to the Bitcoin RPC");
 
+    // Setup Reqwest client
+    let reqwest_client = reqwest::Client::new();
+
     // Initialize shared app state
     let app_state = Arc::new(AppState {
         rpc_client,
+        reqwest_client,
         db_pool,
     });
-
-    // Run indexer
-    // TODO: this should only run the first time the app is started.
-    index_blockchain(Arc::clone(&app_state));
 
     // Configure routing
     let app = Router::new()
         .route("/entities", get(entities))
+        .route("/address/:address", get(address))
         .with_state(app_state);
 
     // Start HTTP server
