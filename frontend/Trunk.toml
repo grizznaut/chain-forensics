@@ -1,6 +1,0 @@
-[serve]
-open = true
-
-[[proxy]]
-rewrite = "/api/"
-backend = "http://localhost:8000/"
