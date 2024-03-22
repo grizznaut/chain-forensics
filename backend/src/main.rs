@@ -47,6 +47,27 @@ async fn address(Path(address): Path<String>, State(state): State<Arc<AppState>>
     Json(address_details)
 }
 
+#[derive(Serialize, Deserialize)]
+struct Transaction {
+    txid: String,
+    version: u32,
+    locktime: u32,
+    size: u32,
+    weight: u32,
+    fee: u32,
+    // todo: vin/vout
+}
+
+async fn address_txs(
+    Path(address): Path<String>,
+    State(state): State<Arc<AppState>>,
+) -> Json<Vec<Transaction>> {
+    let url = format!("http://127.0.0.1:3002/address/{}/txs", address);
+    let res = state.reqwest_client.get(url).send().await.unwrap();
+    let txs = res.json().await.unwrap();
+    Json(txs)
+}
+
 async fn setup_database() -> sqlx::MySqlPool {
     // Create connection pool
     let db_pool = sqlx::MySqlPool::connect("mysql://root@localhost/chain_forensics")
@@ -93,6 +114,7 @@ async fn main() {
     let app = Router::new()
         .route("/entities", get(entities))
         .route("/address/:address", get(address))
+        .route("/address/:address/txs", get(address_txs))
         .with_state(app_state);
 
     // Start HTTP server
